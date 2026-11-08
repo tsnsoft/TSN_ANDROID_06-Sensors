@@ -14,13 +14,12 @@ import android.widget.TextView;
 public class MainActivity extends AppCompatActivity {
 
     private SensorManager mSensorManager; // Менеджер датчиков
-    private Sensor compass; // Датчик компаса
+    private Sensor compass; // Датчик ориентации (компаса)
     private Sensor light; // Датчик освещенности
     private float lightValue; // Значение освещенности
-    private int compassValue;   // Значение компаса
+    private int compassValue; // Значение компаса (0..360 градусов)
     private TextView textView;
 
-    // Задаем метод, вызываемый при создании активности
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -35,44 +34,50 @@ public class MainActivity extends AppCompatActivity {
         mSensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         // Подключаемся к датчику освещенности
         light = mSensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
-        // Подключаемся к датчику компаса
-        compass = mSensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
+        // Подключаемся к современному датчику вектора вращения вместо устаревшего TYPE_ORIENTATION
+        compass = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
     }
 
     // Обработчик событий датчиков
-    private SensorEventListener sensorlistener = new SensorEventListener() {
-        // Метод, вызываемый при изменении значений датчика
+    private final SensorEventListener sensorlistener = new SensorEventListener() {
         @Override
         public void onSensorChanged(SensorEvent event) {
-            if (event.sensor.getType() == Sensor.TYPE_LIGHT ) {
+            if (event.sensor.getType() == Sensor.TYPE_LIGHT) {
                 lightValue = event.values[0]; // Получаем значение освещенности
             }
-            if (event.sensor.getType() == Sensor.TYPE_ORIENTATION ) {
-                compassValue = Math.round(event.values[0]); // Получаем значение компаса
+            if (event.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
+                float[] rotationMatrix = new float[9];
+                float[] orientation = new float[3];
+                // Переводим данные датчика в углы поворота
+                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+                SensorManager.getOrientation(rotationMatrix, orientation);
+                // Переводим радианы в градусы и приводим к диапазону 0..360
+                float azimuthInDegrees = (float) Math.toDegrees(orientation[0]);
+                compassValue = Math.round((azimuthInDegrees + 360) % 360);
             }
             textView.setText(String.format("%s %s %s \n %s %s", getString(R.string.compass),
                     compassValue, getString(R.string.degrees), "LIGHT:", lightValue));
         }
 
-        // Метод, вызываемый при изменении точности датчика
         @Override
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
         }
     };
 
-    // Задаем метод, вызываемый при возвращении программы в активный режим
-    // @Override
+    @Override
     protected void onResume() {
         super.onResume();
-        mSensorManager.registerListener(sensorlistener, light, SensorManager.SENSOR_DELAY_NORMAL);
-        mSensorManager.registerListener(sensorlistener, compass, SensorManager.SENSOR_DELAY_NORMAL);
+        if (light != null) {
+            mSensorManager.registerListener(sensorlistener, light, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+        if (compass != null) {
+            mSensorManager.registerListener(sensorlistener, compass, SensorManager.SENSOR_DELAY_NORMAL);
+        }
     }
 
-    // Задаем метод, вызываемый при приостановке работы программы
     @Override
     protected void onPause() {
         super.onPause();
         mSensorManager.unregisterListener(sensorlistener);
     }
-
 }
